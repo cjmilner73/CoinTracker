@@ -101,3 +101,5 @@ for thisTick in tickPairKeys:
         thisPDI = thisAdxVals[1]
         thisMDI = thisAdxVals[2]
         db.adxResults.insert_one({'time': thisTime, 'tick': thisTick, 'adx': thisADX, 'pdi': thisPDI, 'mdi': thisMDI})
+
+# Adding comment for git test
