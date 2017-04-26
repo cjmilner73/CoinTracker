@@ -28,6 +28,7 @@ myBalance = {}
 for balTicker, balValue  in polBal.iteritems():
    for tickerPair, price in polTickers.iteritems():
       btcKey = 'BTC_' + balTicker
+      #if (tickerPair == btcKey) or (balTicker == 'USDT'):
       if (tickerPair == btcKey):
           floatBalValue = float(balValue)
           if ( floatBalValue != 0):
@@ -36,4 +37,10 @@ for balTicker, balValue  in polBal.iteritems():
 
 myBalance['timestamp'] = currTime
 myBalance['totalBTC'] = total
+print total
+print polTickers['USDT_BTC']['last']
+print float(polBal['USDT'])
+myBalance['totalUSD'] = float(polBal['USDT']) + (total * float(polTickers['USDT_BTC']['last']))
+
 db.balances.insert(myBalance)
+print myBalance['totalUSD']
