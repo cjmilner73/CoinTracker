@@ -5,7 +5,6 @@ import time
 import adx
 from poloniex import Poloniex
 from pymongo import MongoClient
-from create_new_document import insert_new_doc 
 from bson import ObjectId
 
 
@@ -18,39 +17,15 @@ currMin = time.strftime("%M")
 db = client.ticker_db
 
 polTickers = polCon.returnTicker()
-print polTickers
 tickPairKeys = polTickers.keys()
 
-def getLatestHourFromDB():
-    lastDoc = db.tickPrice.find({}).sort([('_id', -1)]).limit(1)
-    lastH = 'Dummy'
-    for n in lastDoc:
-	lastH =  n['timestamp_minute']
-    return lastH
-
-lastHour = getLatestHourFromDB()
-
-if lastHour != currHour:
-    for keyPair in tickPairKeys:
-        insert_new_doc(keyPair,currHour)
-
-
 for keyPair in tickPairKeys:
-    lastPrice = polTickers[keyPair]['last']
-    lowestAsk = polTickers[keyPair]['lowestAsk']
-    highestBid = polTickers[keyPair]['highestBid']
-    setLast = {}
-    setLow = {}
-    setHigh = {}
-    setLast['last.' + currMin] = lastPrice
-    setLow['low.' + currMin] = lowestAsk
-    setHigh['high.' + currMin] = highestBid
-    db.tickPrice.update({'timestamp_minute': currHour, 'tick': keyPair }, {'$set': setLast }, upsert=False)
-    db.tickPrice.update({'timestamp_minute': currHour, 'tick': keyPair }, {'$set': setLow }, upsert=False)
-    db.tickPrice.update({'timestamp_minute': currHour, 'tick': keyPair }, {'$set': setHigh }, upsert=False)
-    print "Updated minute " + currMin + " for hour " + currHour + " and " + keyPair + " with last: " + lastPrice
-    print "Updated minute " + currMin + " for hour " + currHour + " and " + keyPair + " with low: " + highestBid
-    print "Updated minute " + currMin + " for hour " + currHour + " and " + keyPair + " with high: " + lowestAsk
+    potentialTicks = db.potentials.find()
+    for p in potentialTicks:
+        if p['tick'] == keyPair:
+            lastPrice = polTickers[keyPair]['last']
+            if 'trigger' in p:
+                if p['direction'] == 'buy':
+                    print "Buy %s lastPrice: %f and trigger: %f" % (keyPair, float(lastPrice), p['trigger'])
 
-#price = db.tickPrice.find_one( {'_id': ObjectId('58fe2cc4df58732f15428c99')} )
 
