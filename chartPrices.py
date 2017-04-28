@@ -12,24 +12,26 @@ from create_new_document import insert_new_last
 from bson import ObjectId
 from random import randint
 
-polCon =  Poloniex("AQKCQME8-FA6XJ0XX-Z81BZC8N-ARJV85F9","b607e01152b255a4d1da89e01c5fd7cd6c8d5784db5c4c369875c1d48cea5b9cd1c26cffa5122bc43b293df12e04f2adeae10847190abaaf21963331838893e8")
+polCon = Poloniex("AQKCQME8-FA6XJ0XX-Z81BZC8N-ARJV85F9","b607e01152b255a4d1da89e01c5fd7cd6c8d5784db5c4c369875c1d48cea5b9cd1c26cffa5122bc43b293df12e04f2adeae10847190abaaf21963331838893e8")
 
 client = MongoClient('mongodb://localhost:27017')
 
 currHour = time.strftime("%Y/%m/%d %H")
 currMin = time.strftime("%M")
 
+weekInSeconds = 604800
 monthInSeconds = 2592000
 twoMonthsInSeconds = 2592000*2
 threeMonthsInSeconds = 2592000*3
-fourHours = 14400
+fourHoursInSeconds = 14400
+oneDayInSeconds = 86400
 
-startEpoch = threeMonthsInSeconds
-tickPeriod = fourHours
+startEpoch = weekInSeconds
+tickPeriod = fourHoursInSeconds
 
-days_to_subtract = 1
 nowTimeEpoch = calendar.timegm(time.gmtime())
-yesterdayTimeEpoch = nowTimeEpoch - startEpoch
+endTimeEpoch = calendar.timegm(time.gmtime()) - (5 * tickPeriod)
+startTimeEpoch = endTimeEpoch  - startEpoch
 
 db = client.ticker_db
 
@@ -37,21 +39,39 @@ polTicker = polCon.returnTicker()
 
 tickPairKeys = polTicker.keys()
 
+btcTickPairs = []
+for tickPair in tickPairKeys:
+    if tickPair.startswith("BTC"):
+        btcTickPairs.append(tickPair)
+
 db.tickChart.remove({})
 db.adxResults.remove({})
+db.tickChartLastFive.remove({})
+db.potentials.remove({})
 
-for keyPair in tickPairKeys:
-    print "Loading " + keyPair
-    polChart = polCon.returnChartData(keyPair,tickPeriod, yesterdayTimeEpoch, nowTimeEpoch)
+#btcTickPairs = ["BTC_POT"]
+
+for keyPair in btcTickPairs:
+    polChart = polCon.returnChartData(keyPair, tickPeriod, startTimeEpoch, endTimeEpoch)
     for tickSticks in polChart['candleStick']:
-       high = tickSticks['high']
-       low = tickSticks['low']
-       epochTime = tickSticks['date']
-       close = tickSticks['close']
-       open = tickSticks['open']
-       db.tickChart.insert_one({'tick': keyPair, 'high': high, 'low': low, 'time': epochTime, 'close': close, 'open': open})
+        high = tickSticks['high']
+        low = tickSticks['low']
+        epochTime = tickSticks['date']
+        close = tickSticks['close']
+        open = tickSticks['open']
+        db.tickChart.insert_one({'tick': keyPair, 'high': high, 'low': low, 'time': epochTime, 'close': close, 'open': open})
 
-class Student(object):
+for keyPair in btcTickPairs:
+    polChartLastFive = polCon.returnChartData(keyPair, tickPeriod, endTimeEpoch, nowTimeEpoch)
+    for tickSticks in polChartLastFive['candleStick']:
+        high = tickSticks['high']
+        low = tickSticks['low']
+        epochTime = tickSticks['date']
+        close = tickSticks['close']
+        open = tickSticks['open']
+        db.tickChartLastFive.insert_one({'tick': keyPair, 'high': high, 'low': low, 'time': epochTime, 'close': close, 'open': open})
+
+class Initial(object):
     ndx = "BTC"
 
     #container to count the number of event windows we have cycled through
@@ -80,26 +100,65 @@ class Student(object):
     dx = 0
 
 
-class Btc_usdt(object):
+class TickObj(object):
     high = 0
     low = 0 
     close = 0
 
-s = Student();
-b = Btc_usdt()
+s = Initial()
+b = TickObj()
 
-adx.initialize(s)
 
-for thisTick in tickPairKeys:
+for thisTick in btcTickPairs:
+    adx.initialize(s)
     for prices in db.tickChart.find({'tick': thisTick}):
         b.high = prices['high']
         b.low = prices['low']
         b.close = prices['close']
         thisTime = time.strftime('%d-%m-%Y %H:%M:%S', time.localtime(prices['time']))
+        thisEpochTime = prices['time']
         thisAdxVals = adx.handle_data(s,b)
         thisADX = thisAdxVals[0]
         thisPDI = thisAdxVals[1]
         thisMDI = thisAdxVals[2]
-        db.adxResults.insert_one({'time': thisTime, 'tick': thisTick, 'adx': thisADX, 'pdi': thisPDI, 'mdi': thisMDI})
+        
+        db.adxResults.insert_one({'epochTime': thisEpochTime, 'time': thisTime, 'tick': thisTick, 'adx': thisADX, 'pdi': thisPDI, 'mdi': thisMDI, 'high': b.high, 'low': b.low, 'close': b.close})
 
-# Adding comment for git test
+# Check for ADX > 30 and set trigger
+
+latestTime = db.adxResults.find().sort([("epochTime", -1)]).limit(1)
+for i in latestTime:
+    adxCheckTime = i['epochTime']
+    
+
+latestADX =  db.adxResults.find({'epochTime': adxCheckTime, 'adx': {'$gt': 50}})
+
+# Load potentials
+for i in latestADX:
+    db.potentials.insert_one(i)
+    if i['pdi'] > i['mdi']:
+        print "Buy %s with ADX of %d" % (i['tick'], i['adx'])
+        db.potentials.update({'tick': i['tick']}, {"$set": {'direction': 'buy'}}, upsert=False)
+    else:
+        print "Sell %s with ADX of %d" % (i['tick'], i['adx'])
+        db.potentials.update({'tick': i['tick']}, {"$set": {'direction': 'sell'}}, upsert=False)
+
+# Get High/Low for last 5
+potentials = db.potentials.find()
+
+for potential in potentials:
+    tickPair = potential['tick']
+    highestCursor = db.tickChartLastFive.find({'tick': tickPair}).sort([("high", -1)]).limit(1)
+    lowestCursor = db.tickChartLastFive.find({'tick': tickPair}).sort([("low", 1)]).limit(1)
+    for i in highestCursor:
+        highest = i['high']
+    for i in lowestCursor:
+        lowest = i['low']
+
+    trigger = lowest + (highest - lowest) / 2
+    print ("%s highest %.12f and lowest %.12f ad trigger %.12f") % (tickPair, highest, lowest, trigger)
+    print "Setting Trigger in collection potential"
+
+    if trigger < potential['close']:
+        db.potentials.update({'tick': tickPair}, {"$set": {'trigger': trigger}}, upsert=False)
+
