@@ -1,16 +1,8 @@
-import collections
-import ast
-import json
-import datetime
 import time
 import calendar
 import adx
 from poloniex import Poloniex
 from pymongo import MongoClient
-from create_new_document import insert_new_last 
-#from create_new_document import insert_new_chart
-from bson import ObjectId
-from random import randint
 
 polCon = Poloniex("AQKCQME8-FA6XJ0XX-Z81BZC8N-ARJV85F9","b607e01152b255a4d1da89e01c5fd7cd6c8d5784db5c4c369875c1d48cea5b9cd1c26cffa5122bc43b293df12e04f2adeae10847190abaaf21963331838893e8")
 
@@ -30,7 +22,8 @@ startEpoch = weekInSeconds
 tickPeriod = fourHoursInSeconds
 
 nowTimeEpoch = calendar.timegm(time.gmtime())
-endTimeEpoch = calendar.timegm(time.gmtime()) - (5 * tickPeriod)
+# endTimeEpoch = calendar.timegm(time.gmtime()) - (5 * tickPeriod)
+endTimeEpoch = nowTimeEpoch
 startTimeEpoch = endTimeEpoch  - startEpoch
 
 db = client.ticker_db
@@ -60,16 +53,6 @@ for keyPair in btcTickPairs:
         close = tickSticks['close']
         open = tickSticks['open']
         db.tickChart.insert_one({'tick': keyPair, 'high': high, 'low': low, 'time': epochTime, 'close': close, 'open': open})
-
-for keyPair in btcTickPairs:
-    polChartLastFive = polCon.returnChartData(keyPair, tickPeriod, endTimeEpoch, nowTimeEpoch)
-    for tickSticks in polChartLastFive['candleStick']:
-        high = tickSticks['high']
-        low = tickSticks['low']
-        epochTime = tickSticks['date']
-        close = tickSticks['close']
-        open = tickSticks['open']
-        db.tickChartLastFive.insert_one({'tick': keyPair, 'high': high, 'low': low, 'time': epochTime, 'close': close, 'open': open})
 
 class Initial(object):
     ndx = "BTC"
@@ -112,6 +95,7 @@ b = TickObj()
 for thisTick in btcTickPairs:
     adx.initialize(s)
     for prices in db.tickChart.find({'tick': thisTick}):
+
         b.high = prices['high']
         b.low = prices['low']
         b.close = prices['close']
@@ -128,38 +112,75 @@ for thisTick in btcTickPairs:
 
 latestTime = db.adxResults.find().sort([("epochTime", -1)]).limit(1)
 for i in latestTime:
-    adxCheckTime = i['epochTime']
-    
+    lastADX = i['epochTime']
 
-latestADX =  db.adxResults.find({'epochTime': adxCheckTime, 'adx': {'$gt': 50}})
+latestADX =  db.adxResults.find({'epochTime': lastADX, 'adx': {'$gt': 50}})
 
-# Load potentials
+# Load potentials (low, high, close already there as we are inserting whole docuent from adxResults to collection)
 for i in latestADX:
     db.potentials.insert_one(i)
     if i['pdi'] > i['mdi']:
         print "Buy %s with ADX of %d" % (i['tick'], i['adx'])
         db.potentials.update({'tick': i['tick']}, {"$set": {'direction': 'buy'}}, upsert=False)
+        db.potentials.update({'tick': i['tick']}, {"$set": {'trigger': i['low']}}, upsert=False)
     else:
         print "Sell %s with ADX of %d" % (i['tick'], i['adx'])
         db.potentials.update({'tick': i['tick']}, {"$set": {'direction': 'sell'}}, upsert=False)
+        db.potentials.update({'tick': i['tick']}, {"$set": {'trigger': i['high']}}, upsert=False)
 
-# Get High/Low for last 5
-potentials = db.potentials.find()
+# Now need to analyze next N periods for each potential, checking for dips or rises
 
-for potential in potentials:
-    tickPair = potential['tick']
-    highestCursor = db.tickChartLastFive.find({'tick': tickPair}).sort([("high", -1)]).limit(1)
-    lowestCursor = db.tickChartLastFive.find({'tick': tickPair}).sort([("low", 1)]).limit(1)
-    for i in highestCursor:
-        highest = i['high']
-    for i in lowestCursor:
-        lowest = i['low']
+# First, add potentials to trackers document
+trackingTicksDict = {}
+for pot in db.potentials.find():
+    trackingTicks = db.find.trackers()
+    for i in trackingTicks:
+        trackingTicksDict.append(i)
+    if pot['tick'] not in trackingTicksDict:
+        db.trackers.insert_one(pot)
 
-    trigger = lowest + (highest - lowest) / 2
-    print ("%s highest %.12f and lowest %.12f ad trigger %.12f") % (tickPair, highest, lowest, trigger)
-    print "Setting Trigger in collection potential"
+# Now we have trackers, check for any that have expired, (5 x N periods old)
+# Need to get potential Epoch time
 
-    if trigger < potential['close']:
-        db.potentials.update({'tick': tickPair}, {"$set": {'trigger': trigger}}, upsert=False)
 
-# Adding branch 1.1
+
+
+
+# Get all periods after Epoch time, put them into tracking document
+
+# if the count is > 5 then remove from 'tracking' document
+
+
+checkForDipOrRiseDict = {}
+for pot in db.potentials.find():
+    count = 0
+    potEpochTime = pot['epochTime']
+    thisTick = pot['tick']
+    trackingCur = db.adxResults.find({'tick': thisTick, 'epochTime': {'$gt': potEpochTime}})
+    for i in trackingCur:
+        if trackingCur['tick'] == thisTick:
+            count += 1
+            if count == 5:
+                db.tracking.remove({'tick': thisTick})
+            else:
+                checkForDipOrRiseDict.append(i)
+
+    # Now we have a the last N periods after the ADX period, let's work out if we have a dip or rise
+    green, red = 0, 0
+    for i in checkForDipOrRiseDict:
+        if i['close'] > i['open']:
+            green += 1
+        if i['close'] > i['open']:
+            red += 1
+
+# if detected AND close price is < trigger, set trigger flag to true
+    if (red >= 3 and checkForDipOrRiseDict['close'] < pot['trigger'] and pot['direction' == 'Buy']):
+        db.potentials.update({'tick': thisTick}, {"$set": {'triggerFlag': True}}, upsert=False)
+    if (green >= 3 and checkForDipOrRiseDict['close'] > pot['trigger'] and pot['direction' == 'Sell']):
+        db.potentials.update({'tick': thisTick}, {"$set": {'triggerFlag': True}}, upsert=False)
+
+# Now we should have the potentials collection updated with a triggerFlag and a trigger price, we're done here
+
+
+
+
