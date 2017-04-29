@@ -19,13 +19,10 @@ db = client.ticker_db
 polTickers = polCon.returnTicker()
 tickPairKeys = polTickers.keys()
 
-for keyPair in tickPairKeys:
-    potentialTicks = db.potentials.find()
-    for p in potentialTicks:
-        if p['tick'] == keyPair:
-            lastPrice = polTickers[keyPair]['last']
-            if 'trigger' in p:
-                if p['direction'] == 'buy':
-                    print "Buy %s lastPrice: %f and trigger: %f" % (keyPair, float(lastPrice), p['trigger'])
-
+for potentialTick in db.potentials.find():
+    lastPrice = polTickers[potentialTick['tick']]
+    if (potentialTick['triggerFlag'] and lastPrice >= potentialTick['trigger'] and potentialTick['direction'] == 'buy'):
+        print "Buy %s lastPrice: %f and trigger: %f" % (potentialTick['tick'], float(lastPrice), potentialTick['trigger'])
+    if (potentialTick['triggerFlag'] and lastPrice <= potentialTick['trigger'] and potentialTick['direction'] == 'sell'):
+        print "Sell %s lastPrice: %f and trigger: %f" % (potentialTick['tick'], float(lastPrice), potentialTick['trigger'])
 

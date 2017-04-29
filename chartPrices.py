@@ -179,7 +179,7 @@ for pot in db.potentials.find():
     if (green >= 3 and checkForDipOrRiseDict['close'] > pot['trigger'] and pot['direction' == 'Sell']):
         db.potentials.update({'tick': thisTick}, {"$set": {'triggerFlag': True}}, upsert=False)
 
-# Now we should have the potentials collection updated with a triggerFlag and a trigger price, we're done here
+# Now we should have the potentials collection updated with a triggerFlag and a trigger price, we're done herejjk
 
 
 
