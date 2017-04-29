@@ -162,3 +162,4 @@ for potential in potentials:
     if trigger < potential['close']:
         db.potentials.update({'tick': tickPair}, {"$set": {'trigger': trigger}}, upsert=False)
 
+# Adding test comment to see if I can revert
