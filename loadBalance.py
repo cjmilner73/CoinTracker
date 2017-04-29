@@ -15,8 +15,9 @@ currTime = time.strftime("%Y/%m/%d %H:%M:%S")
 
 db = client.ticker_db
 
-polBal = polCon.returnBalances()
+db.balances.remove({})
 
+polBal = polCon.returnBalances()
 
 polTickers = polCon.returnTicker()
 tickPairKeys = polTickers.keys()
@@ -28,8 +29,8 @@ myBalance = {}
 for balTicker, balValue  in polBal.iteritems():
    for tickerPair, price in polTickers.iteritems():
       btcKey = 'BTC_' + balTicker
-      #if (tickerPair == btcKey) or (balTicker == 'USDT'):
-      if (tickerPair == btcKey):
+      if (tickerPair == btcKey) or (balTicker == 'USDT'):
+      #if (tickerPair == btcKey):
           floatBalValue = float(balValue)
           if ( floatBalValue != 0):
                myBalance[btcKey] = floatBalValue
@@ -38,9 +39,5 @@ for balTicker, balValue  in polBal.iteritems():
 myBalance['timestamp'] = currTime
 myBalance['totalBTC'] = total
 print total
-print polTickers['USDT_BTC']['last']
-print float(polBal['USDT'])
-myBalance['totalUSD'] = float(polBal['USDT']) + (total * float(polTickers['USDT_BTC']['last']))
 
 db.balances.insert(myBalance)
-print myBalance['totalUSD']

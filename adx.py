@@ -43,8 +43,7 @@ def handle_data(context, data):
     context.highs.appendleft(data.high)
     context.lows.appendleft(data.low)
     context.closes.appendleft(data.close)
-    
-    
+
     #ensure no calculation on first window
     if context.closes[0] == 0:
         high_less_low = 0
@@ -82,7 +81,7 @@ def handle_data(context, data):
     #calculate the True Range and add to bucket
     true_range = max(high_less_low,high_less_prec_close,low_less_prec_close)
     context.true_range_bucket.appendleft(true_range)
-    
+
     #once we have collected enough data to have populated the rolling windows adequately
     #we can start the meat of the calculation
     if context.ticks < (context.window_length + 1):
