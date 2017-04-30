@@ -19,22 +19,28 @@ polBal = polCon.returnBalances()
 polTickers = polCon.returnTicker()
 tickPairKeys = polTickers.keys()
 
-total = 0
+def loadTotalAltInBTC():
+    total = 0
 
-myBalance = {}
+    myBalance = {}
 
-for balTicker, balValue  in polBal.iteritems():
-   for tickerPair, price in polTickers.iteritems():
-      btcKey = 'BTC_' + balTicker
-      if (tickerPair == btcKey) or (balTicker == 'USDT'):
-      #if (tickerPair == btcKey):
-          floatBalValue = float(balValue)
-          if ( floatBalValue != 0):
-               myBalance[btcKey] = floatBalValue
-               total += float(price['last']) * floatBalValue
+    for balTicker, balValue  in polBal.iteritems():
+        for tickerPair, price in polTickers.iteritems():
+            btcKey = 'BTC_' + balTicker
+            if tickerPair == btcKey:
+                floatBalValue = float(balValue)
+                myBalance[balTicker] = floatBalValue
+                total += float(price['last']) * floatBalValue
 
-myBalance['timestamp'] = currTime
-myBalance['totalBTC'] = total
-print total
+        myBalance['timestamp'] = currTime
+        myBalance['totalBTC'] = total
 
-db.balances.insert(myBalance)
+        db.balances.insert(myBalance)
+
+def getTotalBTC():
+    myBalance = {}
+    for balTicker, balValue in polBal.iteritems():
+        if balTicker == 'BTC':
+            btcBalance = balValue
+    print btcBalance
+    return btcBalance

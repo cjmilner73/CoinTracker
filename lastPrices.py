@@ -18,7 +18,9 @@ polTickers = polCon.returnTicker()
 tickPairKeys = polTickers.keys()
 
 for potentialTick in db.potentials.find():
-    lastPrice = polTickers[potentialTick['tick']]
+    # Below looks wrong, lastPrice assigned a dict object, not a float
+    lastPriceTick = polTickers[potentialTick['tick']]
+    lastPrice = lastPriceTick['last']
     if (potentialTick['triggerFlag'] and lastPrice >= potentialTick['trigger'] and potentialTick['direction'] == 'buy'):
         print "Buy %s lastPrice: %f and trigger: %f" % (potentialTick['tick'], float(lastPrice), potentialTick['trigger'])
     if (potentialTick['triggerFlag'] and lastPrice <= potentialTick['trigger'] and potentialTick['direction'] == 'sell'):
