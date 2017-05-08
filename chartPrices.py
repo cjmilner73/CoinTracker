@@ -191,12 +191,12 @@ for pot in db.potentials.find():
     green, red = 0, 0
     for i in db.dipOrRise.find():
         if i['close'] > i['open']:
-	    print "Increasing GREEN by one"
+            print "Increasing GREEN by one"
             print
             green += 1
         if i['close'] > i['open']:
             red += 1
-	    print "Increasing RED by one"
+            print "Increasing RED by one"
             print
 
 # if detected AND close price is < trigger, set trigger flag to true
@@ -204,11 +204,11 @@ for pot in db.potentials.find():
     for i in lastClosePrice:
         closePrice = lastClosePrice['close']
 
-    if (red >= 3 and closePrice < pot['trigger'] and pot['direction' == 'Buy']):
+    if red >= 3 and closePrice < pot['trigger'] and pot['direction' == 'Buy']:
         db.potentials.update({'tick': thisTick}, {"$set": {'triggerFlag': True}}, upsert=False)
 	print "Setting BUY triggerFlag"
 	print
-    if (green >= 3 and closePrice > pot['trigger'] and pot['direction' == 'Sell']):
+    if green >= 3 and closePrice > pot['trigger'] and pot['direction' == 'Sell']:
         db.potentials.update({'tick': thisTick}, {"$set": {'triggerFlag': True}}, upsert=False)
 	print "Setting SELL triggerFlag"
 	print
