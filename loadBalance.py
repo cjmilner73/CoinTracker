@@ -42,5 +42,4 @@ def getTotalBTC():
     for balTicker, balValue in polBal.iteritems():
         if balTicker == 'BTC':
             btcBalance = balValue
-    print btcBalance
     return btcBalance

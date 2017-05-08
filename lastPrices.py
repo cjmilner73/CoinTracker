@@ -16,13 +16,29 @@ db = client.ticker_db
 
 polTickers = polCon.returnTicker()
 tickPairKeys = polTickers.keys()
+print tickPairKeys
+
+gnsTick = 'BTC_GNO'
+for t in tickPairKeys:
+    if t.endswith('GNO'):
+        print t
+        gnsTick = t
 
 for potentialTick in db.potentials.find():
     # Below looks wrong, lastPrice assigned a dict object, not a float
     lastPriceTick = polTickers[potentialTick['tick']]
     lastPrice = lastPriceTick['last']
-    if (potentialTick['triggerFlag'] and lastPrice >= potentialTick['trigger'] and potentialTick['direction'] == 'buy'):
+    # if lastPriceTick.endswith('GNS'):
+    #     print "Found %s at price %f" % (lastPriceTick, lastPrice)
+    if ('triggerFlag' in potentialTick and lastPrice >= potentialTick['trigger'] and potentialTick['direction'] == 'buy'):
         print "Buy %s lastPrice: %f and trigger: %f" % (potentialTick['tick'], float(lastPrice), potentialTick['trigger'])
-    if (potentialTick['triggerFlag'] and lastPrice <= potentialTick['trigger'] and potentialTick['direction'] == 'sell'):
+    if ('triggerFlag' in potentialTick and lastPrice <= potentialTick['trigger'] and potentialTick['direction'] == 'sell'):
         print "Sell %s lastPrice: %f and trigger: %f" % (potentialTick['tick'], float(lastPrice), potentialTick['trigger'])
+
+print
+print "Checking for GNO..."
+print
+
+if gnsTick in polTickers:
+    print polTickers[gnsTick]
 
