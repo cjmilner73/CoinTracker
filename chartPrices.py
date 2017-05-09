@@ -43,7 +43,7 @@ db.tickChart.remove({})
 db.adxResults.remove({})
 db.tickChartLastFive.remove({})
 db.dipOrRise.remove({})
-db.potentials.remove({})
+#db.potentials.remove({})
 #db.trackers.remove({})
 
 for keyPair in btcTickPairs:
@@ -133,6 +133,7 @@ for i in latestTime:
     lastADX = i['epochTime']
 
 # Now find all the TICKS that have an ADX over 50 with the time = the last time period (lastADX)
+print "Checking ADX results for time: %s" % lastADX
 latestADX = db.adxResults.find({'epochTime': lastADX, 'adx': {'$gt': 44}})
 
 #  Now for each tick we find with ADX above 50, first check if it's already a potential
@@ -144,22 +145,23 @@ for i in latestADX:
         if (i['tick'] == p['tick']):
             found = True
 # Check if potential already exists
-    if found == False:
-        print "ADX %s: %s: %s and High is %s" % (i['adx'], i['tick'], i['close'], getPeriodHigh(i['tick']))
-    if found == False and i['close'] >= getPeriodHigh(i['tick']):
-    #if found == False and (i['close'] >= getPeriodHigh(i['tick']) or i['close'] <= getPeriodLow(thisTick)):
-        db.potentials.insert_one(i)
-        if i['pdi'] > i['mdi']:
+    if found == False or ():
+        if i['close'] >= getPeriodHigh(i['tick']) and i['pdi'] > i['mdi']:
             print "Setting up a Buy potential %s with ADX of %d" % (i['tick'], i['adx'])
+            db.potentials.insert_one(i)
             db.potentials.update({'tick': i['tick']}, {"$set": {'direction': 'buy'}}, upsert=False)
             db.potentials.update({'tick': i['tick']}, {"$set": {'trigger': i['low']}}, upsert=False)
-        else:
+        if i['close'] <= getPeriodLow(i['tick']) and i['pdi'] < i['mdi']:
             print "Setting up a Sell potential  %s with ADX of %d" % (i['tick'], i['adx'])
+            db.potentials.insert_one(i)
             db.potentials.update({'tick': i['tick']}, {"$set": {'direction': 'sell'}}, upsert=False)
             db.potentials.update({'tick': i['tick']}, {"$set": {'trigger': i['high']}}, upsert=False)
     else:
-	print "%s already in the potentials collection" % i['tick']
-        found == False
+        if found == True:
+            print "%s already in the potentials collection" % i['tick']
+            found == False
+        else:
+            print "No High Found, ADX %s: %s: %s and High is %s" % (i['adx'], i['tick'], i['close'], getPeriodHigh(i['tick']))
 
 # Now need to analyze next N periods for each potential, checking for dips or rises
 
@@ -181,21 +183,23 @@ for i in latestADX:
 
 # Get all periods after Epoch time, put them into tracking document
 
-# if the count is > 5 then remove from 'tracking' document
+# if the count is > then remove from 'tracking' document
 
 
 for pot in db.potentials.find():
     count = 0
     potEpochTime = pot['epochTime']
     thisTick = pot['tick']
+    print "Checking adxResults for %s and after epochTime %s" % (thisTick, potEpochTime)
     for i in db.adxResults.find({'tick': thisTick, 'epochTime': {'$gt': potEpochTime}}):
-        print "Found %s tick from adxResults after potential epoch date" % i['tick']
         if i['tick'] == thisTick:
             count += 1
-            if count == 5:
+            if count >= 5:
                 #db.tracking.remove({'tick': thisTick})
-                db.potential.remove({'tick': thisTick})
+                db.potentials.delete_one({'tick': thisTick})
                 count = 0
+                db.dipOrRise.delete_many({})
+                break
             else:
                 db.dipOrRise.insert_one(i)
 
@@ -203,24 +207,25 @@ for pot in db.potentials.find():
     green, red = 0, 0
     for i in db.dipOrRise.find():
         if i['close'] > i['open']:
-            print "Increasing GREEN by one"
+            print "Increasing GREEN by one for %s" % i['tick']
             print
             green += 1
         if i['close'] > i['open']:
             red += 1
-            print "Increasing RED by one"
+            print "Increasing RED by one for %s" % i['tick']
             print
 
 # if detected AND close price is < trigger, set trigger flag to true
     lastClosePrice = db.dipOrRise.find({'tick': pot['tick']}).sort([("epochTime", -1)]).limit(1)
-    for i in lastClosePrice:
-        closePrice = lastClosePrice['close']
 
-    if red >= 3 and closePrice < pot['trigger'] and pot['direction' == 'Buy']:
+    for i in lastClosePrice:
+        closePrice = i['close']
+
+    if red >= 3 and closePrice < pot['trigger'] and pot['direction'] == 'Buy':
         db.potentials.update({'tick': thisTick}, {"$set": {'triggerFlag': True}}, upsert=False)
 	print "Setting BUY triggerFlag"
 	print
-    if green >= 3 and closePrice > pot['trigger'] and pot['direction' == 'Sell']:
+    if green >= 3 and closePrice > pot['trigger'] and pot['direction'] == 'Sell':
         db.potentials.update({'tick': thisTick}, {"$set": {'triggerFlag': True}}, upsert=False)
 	print "Setting SELL triggerFlag"
 	print
